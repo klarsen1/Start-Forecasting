@@ -1,5 +1,5 @@
 
-setwd("/Users/kim.larsen/Documents/Code/Pretend_Company_Growth/Bad Forecasting")
+setwd("/Users/kim.larsen/Documents/Code/Start-Forecasting")
 
 library(ggplot2)
 library(dplyr)
@@ -89,6 +89,7 @@ sim <- function(){
    return(d)
 }
    
+## Generate the numbers. Note that I'm using the model for historical and future data
 d <- sim()
 
 ## Annual revenue
@@ -98,21 +99,21 @@ group_by(d, year) %>%
       geom_bar(stat="identity") + 
       scale_y_continuous(labels = scales::dollar) 
 
-## YOY revenue
+## Revenue growth
 g1 <- filter(d, date<=start_forecast) %>%
-  ggplot(aes(x=month, y=revenue, fill=factor(year))) +
-  geom_bar(stat="identity", position="dodge") +
+  ggplot(aes(x=date, y=revenue)) +
+  geom_bar(stat="identity") +
   scale_y_continuous(labels = scales::dollar, breaks=seq(from=0,to=roundup(max(d$revenue), 1000000), by=1000000)) + 
-  scale_x_continuous(breaks = seq(1:12)) + 
+  scale_x_date(breaks="2 months") +
   theme(axis.text.x = element_text(angle = 90, hjust = 1), legend.title = element_blank()) +
-  ylab("Monthly revenue") + xlab("Month")
+  ylab("Monthly revenue") + xlab("Date")
 g1
-ggsave(g1, file="yoy.png", device = "png", dpi=72, width=9, height=6)
+ggsave(g1, file="growth.png", device = "png", dpi=72, width=9, height=6)
 
 
 ## Top down forecast
 td <- mutate(d, 
-       revenue=ifelse(date>start_forecast, lag(revenue,12)*1.22, revenue), 
+       revenue=ifelse(date>start_forecast, lag(revenue,12)*1.24, revenue), 
        source=ifelse(date>start_forecast, "Topdown plan", "Historical")) %>%
   filter(date>=chart_start)
 
@@ -128,12 +129,12 @@ ggsave(g2, file="topdown.png", device = "png", dpi=72, width=9, height=6)
 
 # How aggressive is this?
 long <- mutate(d, 
-       `Topdown plan`=ifelse(date>start_forecast, lag(revenue,12)*1.22, NA), 
-       Model=ifelse(date<=start_forecast, NA, revenue), 
-       Historical=ifelse(date<=start_forecast, revenue, NA)) %>%
-  select(date, `Topdown plan`, Model, Historical) %>%
+       `Topdown plan`=ifelse(date>start_forecast, lag(revenue,12)*1.24, 0), 
+       `Model-based forecast`=ifelse(date<=start_forecast, 0, revenue), 
+       Historical=ifelse(date<=start_forecast, revenue, 0)) %>%
+  select(date, `Topdown plan`, `Model-based forecast`, Historical) %>%
   filter(date>=chart_start) %>%
-  pivot_longer(cols=c(`Topdown plan`, "Model", "Historical"), names_to = "source", values_to = "y") 
+  pivot_longer(cols=c(`Topdown plan`, `Model-based forecast`, "Historical"), names_to = "source", values_to = "y") 
 
 g3 <- 
   ggplot(data=long, aes(x=date, y=y, fill=factor(source))) + 
@@ -143,27 +144,26 @@ g3 <-
   theme(axis.text.x = element_text(angle = 90, hjust = 1), legend.title = element_blank()) +
   ylab("Monthly revenue") + xlab("Date")
 g3
-ggsave(g3, file="compare_methohds.png", device = "png", dpi=72, width=9, height=6)
+ggsave(g3, file="compare.png", device = "png", dpi=72, width=11, height=6)
 
 
 
 # Why is the model negative? Why the flattening?
 g4 <- select(d, date, Churn, Acquisition) %>%
-  filter(date>start_next_fiscal_year) %>%
   pivot_longer(cols=c("Acquisition", "Churn"), names_to = "source", values_to = "y") %>%
   ggplot(aes(x=date, y=y, colour=factor(source))) + 
   geom_line(size=1.2) + 
-  scale_y_continuous(labels = scales::comma) + 
-  scale_x_date(breaks="2 months") +
+  scale_y_continuous(labels = scales::comma, breaks=seq(from=0,to=roundup(max(long$y, na.rm=T), 1000), by=1000)) + 
+  scale_x_date(breaks="4 months") +
+  geom_vline(xintercept=as.Date("2019-10-01"), linetype=2) +
   theme(axis.text.x = element_text(angle = 90, hjust = 1), legend.title = element_blank(), legend.position="bottom") +
   ylab("") + xlab("Date")
 g4
-ggsave(g4, file="tyrani.png", device = "png", dpi=72, width=9, height=6)
+ggsave(g4, file="tyranny.png", device = "png", dpi=72, width=9, height=6)
 
 
-# blame the CACs
+# Marginal CACs
 g5 <- select(d, date, marginal_cac) %>%
-  filter(date>start_next_fiscal_year) %>%
   ggplot(aes(x=date, y=marginal_cac, colour="Marginal CAC")) + 
   geom_line(size=1.2) + 
   scale_y_continuous(labels = scales::dollar) + 
@@ -171,10 +171,8 @@ g5 <- select(d, date, marginal_cac) %>%
   theme(axis.text.x = element_text(angle = 90, hjust = 1), legend.title = element_blank(), legend.position="bottom") +
   ylab("") + xlab("Date")
 g5
-ggsave(g5, file="blame_cacs.png", device = "png", dpi=72, width=9, height=6)
+ggsave(g5, file="marginal.png", device = "png", dpi=72, width=9, height=6)
 
-
-ggsave(plot_grid(g4, g5), file="blame_cacs_and_churn.png", device = "png", dpi=72, width=9, height=6)
 
 ### Sensitivity
 sens <- list()
