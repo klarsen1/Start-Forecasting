@@ -37,12 +37,12 @@ survival_rate <- 0.9
 initial_marketing <- 40000
 base <- 200
 gm <- 0.4
-dates <- seq(as.Date("2017-1-1"), as.Date("2020-12-1"), by = "months")
+dates <- seq(as.Date("2018-1-1"), as.Date("2021-12-1"), by = "months")
 n <- length(dates)
-start_forecast <- as.Date("2019-09-1")
-cutoff <- as.Date("2017-12-1")
-chart_start <- as.Date("2019-01-1")
-start_next_fiscal_year <- as.Date("2020-01-1")
+start_forecast <- as.Date("2020-09-1")
+cutoff <- as.Date("2018-12-1")
+chart_start <- as.Date("2020-01-1")
+start_next_fiscal_year <- as.Date("2021-01-1")
 marketing_boost <- 1
 
   
@@ -89,7 +89,7 @@ sim <- function(){
    return(d)
 }
    
-## Generate the numbers. Note that I'm using the model for historical and future data
+## Generate the numbers. Note that I'm using the model for historical AND future data. So cheating here. 
 d <- sim()
 
 ## Annual revenue
@@ -109,6 +109,14 @@ g1 <- filter(d, date<=start_forecast) %>%
   ylab("Monthly revenue") + xlab("Date")
 g1
 ggsave(g1, file="growth.png", device = "png", dpi=72, width=9, height=6)
+
+g11 <- filter(d, date<=start_forecast & month<10) %>%
+  group_by(year) %>%
+  summarise(revenue=sum(revenue)) %>%
+  ungroup() %>%
+  mutate(label=ifelse(row_number()==1, "Jan - Sep 2019", "Jan - Sep 2020")) %>%
+  ggplot(aes(x=year, y=label)) +
+  geom_bar(stat="identity")
 
 
 ## Top down forecast
@@ -179,8 +187,9 @@ sens <- list()
 for (i in 10:20){
   marketing_boost <- i/10
   dd <- sim()
-  runrate <- 12*filter(dd, date==as.Date("2020-12-1"))$revenue
-  ddd <- data.frame(allocation=marketing_allocation*marketing_boost, run_rate=runrate)
+  runrate <- 12*filter(dd, date==as.Date("2021-12-1"))$revenue
+  acq <- sum(filter(dd, year==2021)$Acquisition)
+  ddd <- data.frame(allocation=marketing_allocation*marketing_boost, run_rate=runrate, acquisition=acq)
   sens[[i-9]] <- ddd 
 }
 
@@ -189,7 +198,7 @@ g6 <- bind_rows(sens) %>%
   geom_bar(stat="identity") + 
   scale_y_continuous(labels = scales::dollar) +
   scale_x_continuous(labels = scales::percent, breaks=seq(from=0, to=.3, by=0.05)) +
-  ylab("Annual run-rate at the end of 2020") + xlab("Marketing allocation (% of revenue)") + 
+  ylab("Annual run-rate at the end of 2021") + xlab("Marketing allocation (% of revenue)") + 
   theme(axis.text.x = element_text(angle = 90, hjust = 1))
   
 ggsave(g6, file="sensitivity.png", device = "png", dpi=72, width=9, height=6)
