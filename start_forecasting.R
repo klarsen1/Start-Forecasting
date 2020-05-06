@@ -100,23 +100,33 @@ group_by(d, year) %>%
       scale_y_continuous(labels = scales::dollar) 
 
 ## Revenue growth
-g1 <- filter(d, date<=start_forecast) %>%
+yoy <- mutate(d, yoy_revenue_growth=ifelse(year==2020, yoy_revenue_growth, NA))
+g1 <- filter(yoy, date<=start_forecast) %>%
   ggplot(aes(x=date, y=revenue)) +
   geom_bar(stat="identity") +
   scale_y_continuous(labels = scales::dollar, breaks=seq(from=0,to=roundup(max(d$revenue), 1000000), by=1000000)) + 
   scale_x_date(breaks="2 months") +
   theme(axis.text.x = element_text(angle = 90, hjust = 1), legend.title = element_blank()) +
+  geom_text(aes(label=scales::percent(yoy_revenue_growth, 1)), vjust=-1, size=2) +
   ylab("Monthly revenue") + xlab("Date")
 g1
 ggsave(g1, file="growth.png", device = "png", dpi=72, width=9, height=6)
 
-g11 <- filter(d, date<=start_forecast & month<10) %>%
+ytd <- filter(d, date<=start_forecast & month<10) %>%
   group_by(year) %>%
   summarise(revenue=sum(revenue)) %>%
   ungroup() %>%
-  mutate(label=ifelse(row_number()==1, "Jan - Sep 2019", "Jan - Sep 2020")) %>%
-  ggplot(aes(x=year, y=label)) +
-  geom_bar(stat="identity")
+  mutate(label=ifelse(row_number()==1, "Jan - Sep 2019", "Jan - Sep 2020"), 
+         growth=revenue/lag(revenue)-1) 
+
+g11 <-
+  ggplot(data=ytd, aes(x=label, y=revenue)) +
+  geom_bar(stat="identity") + 
+  scale_y_continuous(labels = scales::dollar, breaks=seq(from=0,to=roundup(max(ytd$revenue), 10000000), by=10000000)) +
+  geom_text(aes(label = scales::percent(growth)), vjust = -1) +
+  ylab("Total revenue") + xlab("")
+g11  
+ggsave(g11, file="ytd.png", device = "png", dpi=72, width=9, height=6)
 
 
 ## Top down forecast
